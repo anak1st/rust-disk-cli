@@ -13,7 +13,7 @@
 
 ## 截图
 
-![Screenshot](docs/screenshot.png)
+![Screenshot](docs/screenshot-cli.png)
 
 ## 安装
 
