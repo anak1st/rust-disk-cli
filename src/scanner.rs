@@ -122,12 +122,18 @@ pub fn tree_to_list(
     let mut items = Vec::new();
 
     // 使用路径作为 key 检查展开状态
-    // 根目录默认展开
-    let is_expanded = expanded.get(&node.path).copied().unwrap_or(depth == 0);
+    // 根目录默认展开（但如果用户手动折叠了则以用户设置为准）
+    let is_expanded = if depth == 0 {
+        // 根目录：如果 HashMap 中没有记录，默认展开；否则使用用户的设置
+        expanded.get(&node.path).copied().unwrap_or(true)
+    } else {
+        // 非根目录：默认折叠
+        expanded.get(&node.path).copied().unwrap_or(false)
+    };
 
     // 根据节点类型和展开状态选择前缀图标
     let prefix = if node.is_dir {
-        if is_expanded || depth == 0 {
+        if is_expanded {
             "📂 " // 已展开的文件夹
         } else {
             "📁 " // 未展开的文件夹

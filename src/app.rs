@@ -109,8 +109,9 @@ impl App {
             // 只有目录才能展开/折叠
             if *is_dir {
                 // 使用路径作为 key 切换展开状态
-                // 默认值需要和 tree_to_list 保持一致：depth == 0 则默认展开
-                let current = self.expanded.get(path).copied().unwrap_or(*depth == 0);
+                // 默认值：根目录默认展开，其他默认折叠
+                let default = *depth == 0;
+                let current = self.expanded.get(path).copied().unwrap_or(default);
                 self.expanded.insert(path.clone(), !current);
                 self.update_list();
             }
