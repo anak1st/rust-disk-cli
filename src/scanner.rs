@@ -1,4 +1,5 @@
 use crate::models::FileNode;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -22,8 +23,8 @@ pub fn scan_dir(
     // 增加已扫描文件计数
     scanned.fetch_add(1, Ordering::Relaxed);
 
-    // 每扫描 100 个文件更新一次当前路径显示
-    if scanned.load(Ordering::Relaxed) % 100 == 0 {
+    // 每扫描 1000 个文件更新一次当前路径显示
+    if scanned.load(Ordering::Relaxed) % 1000 == 0 {
         if let Ok(mut cp) = current_path.lock() {
             *cp = path.to_string_lossy().to_string();
         }
@@ -36,12 +37,13 @@ pub fn scan_dir(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string());
 
-    // 使用 symlink_metadata 检查是否是符号链接
-    // 注意：这里不能使用 fs::metadata，因为它会跟随符号链接
-    let symlink_meta = fs::symlink_metadata(path)?;
+    // 使用 symlink_metadata 获取元数据（不跟随符号链接）
+    // 一次系统调用获取所有需要的信息
+    let metadata = fs::symlink_metadata(path)?;
+    let file_type = metadata.file_type();
 
     // 如果是符号链接，跳过不扫描（避免循环引用和重复计算）
-    if symlink_meta.file_type().is_symlink() {
+    if file_type.is_symlink() {
         return Ok(FileNode {
             name,
             path: path.to_string_lossy().to_string(),
@@ -51,11 +53,8 @@ pub fn scan_dir(
         });
     }
 
-    // 获取实际的文件元数据
-    let metadata = fs::metadata(path)?;
-
     // 如果是普通文件，返回文件节点
-    if metadata.is_file() {
+    if file_type.is_file() {
         return Ok(FileNode {
             name,
             path: path.to_string_lossy().to_string(),
@@ -65,33 +64,33 @@ pub fn scan_dir(
         });
     }
 
-    // 如果是目录，递归扫描所有子项
+    // 如果是目录，并行递归扫描所有子项
     let mut children = Vec::new();
-    let mut total_size: u64 = 0;
 
     // 尝试读取目录内容
     if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let entry_path = entry.path();
+        // 收集所有条目（过滤掉隐藏文件）
+        let entries: Vec<_> = entries
+            .flatten()
+            .filter(|entry| {
+                let file_name = entry.file_name();
+                !file_name.to_string_lossy().starts_with('.')
+            })
+            .collect();
 
-            // 跳过隐藏文件（以 . 开头的文件）
-            let file_name = entry.file_name();
-            if file_name.to_string_lossy().starts_with('.') {
-                continue;
-            }
-
-            // 递归扫描子项，忽略错误（如权限不足的目录）
-            match scan_dir(&entry_path, scanned, current_path) {
-                Ok(child) => {
-                    total_size += child.size;
-                    children.push(child);
-                }
-                Err(_) => {
-                    // 跳过无法访问的文件/目录
-                }
-            }
-        }
+        // 使用 rayon 并行扫描子目录
+        children = entries
+            .into_par_iter()
+            .filter_map(|entry| {
+                let entry_path = entry.path();
+                // 递归扫描子项，忽略错误（如权限不足的目录）
+                scan_dir(&entry_path, scanned, current_path).ok()
+            })
+            .collect();
     }
+
+    // 计算总大小
+    let total_size: u64 = children.iter().map(|c| c.size).sum();
 
     // 按大小降序排序子项，最大的文件/文件夹显示在前面
     children.sort_by(|a, b| b.size.cmp(&a.size));
