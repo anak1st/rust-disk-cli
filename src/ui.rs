@@ -11,6 +11,13 @@ use ratatui::{
 pub fn render(f: &mut Frame, app: &App) {
     let size = f.area();
 
+    // 数字宽度（固定）
+    let size_width: usize = 12;
+    // 左右边距各1
+    let margin: usize = 1;
+    // 列表区域的可用宽度
+    let list_width = size.width as usize - margin * 2;
+
     // -------------------------------------------------------------------
     // 1. 绘制顶部状态栏
     // -------------------------------------------------------------------
@@ -42,12 +49,21 @@ pub fn render(f: &mut Frame, app: &App) {
         .list_items
         .iter()
         .enumerate()
-        .map(|(i, (name, size, depth, _, _))| {
+        .map(|(i, (name, size_str, depth, _, _))| {
             // 计算缩进（每个深度级别 2 个空格）
             let indent = "  ".repeat(*depth);
+            let indent_width = depth * 2;
 
-            // 格式化显示内容：名称 + 大小
-            let content = format!("{}{:>12}", name, size);
+            // 可用宽度 = 总宽度 - 缩进 - 数字宽度 - 边距
+            let max_name_width = list_width.saturating_sub(indent_width + size_width + margin);
+
+            // 格式化显示内容：名称（根据深度动态调整）+ 大小（固定宽度）
+            let truncated_name = if name.len() > max_name_width {
+                format!("{}...", &name[..max_name_width.saturating_sub(3)])
+            } else {
+                name.clone()
+            };
+            let content = format!("{:<width$}{:>size$}", truncated_name, size_str, width = max_name_width, size = size_width);
 
             // 高亮当前选中的项
             let style = if i == app.selected_index {
