@@ -6,6 +6,74 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+/// 检查路径是否在黑名单中
+/// 根据操作系统返回不同的黑名单
+fn is_blacklisted(path: &Path) -> bool {
+    let path_str = path.to_string_lossy();
+
+    #[cfg(target_os = "macos")]
+    {
+        // 只排除虚拟文件系统和系统内部目录
+        // 正常的系统文件如 /System/Library 等仍然可以扫描
+        const BLACKLIST: &[&str] = &[
+            // 虚拟文件系统
+            "/dev",
+            "/.vol",
+            "/Network",
+            // 系统数据卷（包含实际用户数据，但路径特殊）
+            "/System/Volumes",
+            // 系统内部数据库和缓存
+            "/var/db",
+            "/var/log/asl",
+            "/private/var/db",
+            "/private/var/vm",
+            // 文件系统元数据
+            "/.Spotlight-V100",
+            "/.Trashes",
+            "/.fseventsd",
+            // 外部卷根目录（可选，如果只想扫描本地磁盘）
+            // "/Volumes",
+        ];
+        BLACKLIST.iter().any(|&p| path_str == p || path_str.starts_with(&format!("{}/", p)))
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        const BLACKLIST: &[&str] = &[
+            "/proc",
+            "/sys",
+            "/dev",
+            "/run",
+            "/boot",
+            "/lost+found",
+            "/snap",
+        ];
+        BLACKLIST.iter().any(|&p| path_str == p || path_str.starts_with(&format!("{}/", p)))
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Windows 路径不区分大小写
+        let path_lower = path_str.to_lowercase();
+        const BLACKLIST: &[&str] = &[
+            r"\$recycle.bin",
+            r"\system volume information",
+            r"\config.msi",
+            r"\intel",
+            r"\perflogs",
+        ];
+        BLACKLIST.iter().any(|&p| {
+            let p_lower = p.to_lowercase();
+            path_lower.contains(&p_lower)
+        })
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        false
+    }
+}
+
 /// 递归扫描目录，构建文件树
 ///
 /// # 参数
@@ -28,6 +96,20 @@ pub fn scan_dir(
         if let Ok(mut cp) = current_path.lock() {
             *cp = path.to_string_lossy().to_string();
         }
+    }
+
+    // 检查路径是否在黑名单中
+    if is_blacklisted(path) {
+        return Ok(FileNode {
+            name: path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.to_string_lossy().to_string()),
+            path: path.to_string_lossy().to_string(),
+            is_dir: true,
+            size: 0,
+            children: vec![],
+        });
     }
 
     // 获取文件/文件夹名称
