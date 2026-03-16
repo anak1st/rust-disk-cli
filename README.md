@@ -11,6 +11,10 @@
 - 自动跳过系统虚拟目录和黑名单路径
 - 终端 TUI 界面
 
+## 截图
+
+![Screenshot](docs/screenshot.png)
+
 ## 安装
 
 ### 从源码编译
