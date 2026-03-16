@@ -32,7 +32,7 @@ cargo run
 src/
 ├── main.rs       # 入口点，事件循环
 ├── models.rs     # 数据结构 (FileNode, ScanState)
-├── scanner.rs    # 扫描逻辑 (scan_dir, tree_to_list, get_drives)
+├── scanner.rs    # 扫描逻辑 (scan_dir, tree_to_list, get_drives, is_blacklisted)
 ├── app.rs        # 应用状态 (App)
 ├── ui.rs         # UI 渲染 (ratatui 组件)
 └── utils.rs      # 工具函数 (format_size)
@@ -45,14 +45,44 @@ src/
 
 ### 扫描功能 ([scanner.rs](src/scanner.rs))
 
-- 使用**后台线程**进行目录扫描，保持 UI 响应
-- `scan_dir()` 递归遍历目录，跳过隐藏文件（以 `.` 开头）和符号链接
+#### 多线程并行扫描
+- 使用 **rayon** 库实现数据并行，`into_par_iter()` 并行扫描子目录
+- 自动利用多核 CPU，显著提升扫描速度
+- 线程池由 rayon 自动管理，无需手动配置
+
+#### 性能优化
+- **单次系统调用**：使用 `symlink_metadata()` 一次获取文件类型和大小
+- **符号链接处理**：跳过符号链接避免循环引用和重复计算
+- **黑名单过滤**：跳过系统虚拟目录，避免无意义的扫描
+
+#### 平台黑名单
+
+**macOS:**
+- 虚拟文件系统：`/dev`, `/.vol`, `/Network`
+- 系统数据卷：`/System/Volumes`
+- 系统内部数据：`/var/db`, `/private/var/db`, `/private/var/vm`
+- 文件系统元数据：`/.Spotlight-V100`, `/.Trashes`, `/.fseventsd`
+
+**Linux:**
+- 虚拟文件系统：`/proc`, `/sys`, `/dev`, `/run`
+- 系统目录：`/boot`, `/lost+found`, `/snap`
+
+**Windows:**
+- 回收站：`\$recycle.bin`
+- 系统还原：`\system volume information`
+- 安装缓存：`\config.msi`
+- 系统日志：`\intel`, `\perflogs`
+
+#### 其他功能
 - `tree_to_list()` 将树转换为扁平列表，支持展开/折叠状态
 - 结果按大小降序排列（最大的在前面）
+- 跳过隐藏文件（以 `.` 开头）
 
 ### 应用状态 ([app.rs](src/app.rs))
 
 - **`App`** - 主应用程序状态，管理扫描结果、展开的文件夹和 UI 选中状态
+- 使用后台线程进行目录扫描，保持 UI 响应
+- `check_scan_complete()` 非阻塞检查扫描状态
 
 ### UI 渲染 ([ui.rs](src/ui.rs))
 
@@ -70,6 +100,15 @@ src/
 | 空格 | 展开/折叠目录 |
 | r | 重新扫描当前路径 |
 | q | 退出 |
+
+## 依赖项
+
+| 依赖 | 版本 | 用途 |
+|------|------|------|
+| ratatui | 0.29 | TUI 框架 |
+| crossterm | 0.28 | 跨平台终端控制 |
+| serde | 1 | 序列化支持 |
+| rayon | 1.8 | 数据并行库 |
 
 ## 平台支持
 
