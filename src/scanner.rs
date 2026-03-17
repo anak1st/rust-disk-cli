@@ -1,4 +1,4 @@
-use crate::models::FileNode;
+use crate::models::{FileNode, NodeType};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
@@ -99,26 +99,23 @@ pub fn scan_dir(
         }
     }
 
-    // 检查路径是否在黑名单中
-    if is_blacklisted(path) {
-        return Ok(FileNode {
-            name: path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| path.to_string_lossy().to_string()),
-            path: path.to_string_lossy().to_string(),
-            is_dir: true,
-            size: 0,
-            children: vec![],
-        });
-    }
-
     // 获取文件/文件夹名称
     // 如果没有名称（如根目录），则使用完整路径
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+    // 检查路径是否在黑名单中
+    if is_blacklisted(path) {
+        return Ok(FileNode {
+            name,
+            path: path.to_string_lossy().to_string(),
+            node_type: NodeType::Skipped,
+            size: 0,
+            children: vec![],
+        });
+    }
 
     // 使用 symlink_metadata 获取元数据（不跟随符号链接）
     // 一次系统调用获取所有需要的信息
@@ -130,7 +127,7 @@ pub fn scan_dir(
         return Ok(FileNode {
             name,
             path: path.to_string_lossy().to_string(),
-            is_dir: false,
+            node_type: NodeType::Symlink,
             size: 0,
             children: vec![],
         });
@@ -141,7 +138,7 @@ pub fn scan_dir(
         return Ok(FileNode {
             name,
             path: path.to_string_lossy().to_string(),
-            is_dir: false,
+            node_type: NodeType::File,
             size: metadata.len(),
             children: vec![],
         });
@@ -181,7 +178,7 @@ pub fn scan_dir(
     Ok(FileNode {
         name,
         path: path.to_string_lossy().to_string(),
-        is_dir: true,
+        node_type: NodeType::Directory,
         size: total_size,
         children,
     })
@@ -213,15 +210,18 @@ pub fn tree_to_list(
         expanded.get(&node.path).copied().unwrap_or(false)
     };
 
-    // 根据节点类型和展开状态选择前缀图标
-    let prefix = if node.is_dir {
-        if is_expanded {
-            "📂 " // 已展开的文件夹
-        } else {
-            "📁 " // 未展开的文件夹
+    // 根据节点类型选择前缀图标
+    let prefix = match node.node_type {
+        NodeType::Directory => {
+            if is_expanded {
+                "📂 " // 已展开的文件夹
+            } else {
+                "📁 " // 未展开的文件夹
+            }
         }
-    } else {
-        "📄 " // 文件
+        NodeType::File => "📄 ",     // 普通文件
+        NodeType::Symlink => "🔗 ",  // 符号链接
+        NodeType::Skipped => "🚫 ",  // 跳过的路径
     };
 
     // 添加当前节点到列表
@@ -229,12 +229,12 @@ pub fn tree_to_list(
         format!("{}{}", prefix, node.name),
         crate::utils::format_size(node.size),
         depth,
-        node.is_dir,
+        node.is_dir(),
         node.path.clone(),
     ));
 
     // 如果是目录且已展开，递归添加子节点
-    if node.is_dir && is_expanded {
+    if node.is_dir() && is_expanded {
         for child in &node.children {
             items.extend(tree_to_list(child, depth + 1, expanded));
         }

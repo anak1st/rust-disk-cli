@@ -131,6 +131,9 @@ impl App {
     /// # 参数
     /// - delta: 移动的方向和步数（负数向上，正数向下）
     pub fn move_selection(&mut self, delta: isize) {
+        if self.list_items.is_empty() {
+            return;
+        }
         let new_index = (self.selected_index as isize + delta)
             .clamp(0, self.list_items.len() as isize - 1) as usize;
         self.selected_index = new_index;
