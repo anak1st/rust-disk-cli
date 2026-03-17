@@ -100,10 +100,18 @@ fn main() -> std::io::Result<()> {
                         KeyCode::Char(' ') => app.toggle_expand(),
 
                         // ↑: 上移
-                        KeyCode::Up => app.move_selection(-1),
+                        KeyCode::Up => {
+                            app.move_selection(-1);
+                            let list_height = terminal.size()?.height.saturating_sub(6) as usize;
+                            app.update_scroll(list_height);
+                        }
 
                         // ↓: 下移
-                        KeyCode::Down => app.move_selection(1),
+                        KeyCode::Down => {
+                            app.move_selection(1);
+                            let list_height = terminal.size()?.height.saturating_sub(6) as usize;
+                            app.update_scroll(list_height);
+                        }
 
                         // 其他按键忽略
                         _ => {}

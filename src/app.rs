@@ -13,6 +13,7 @@ pub struct App {
     pub selected_index: usize,                                 // 当前选中的列表项索引
     pub list_items: Vec<(String, String, usize, bool, String)>, // 扁平化的列表项
     pub scan_thread: Option<std::thread::JoinHandle<Result<FileNode, String>>>, // 扫描线程
+    pub scroll_offset: usize,                                  // 列表滚动偏移量
 }
 
 impl App {
@@ -31,6 +32,7 @@ impl App {
             selected_index: 0,
             list_items: Vec::new(),
             scan_thread: None,
+            scroll_offset: 0,
         }
     }
 
@@ -132,5 +134,29 @@ impl App {
         let new_index = (self.selected_index as isize + delta)
             .clamp(0, self.list_items.len() as isize - 1) as usize;
         self.selected_index = new_index;
+    }
+
+    /// 更新滚动偏移量，确保选中项在可见区域内
+    ///
+    /// # 参数
+    /// - visible_height: 列表可见区域的高度（行数）
+    pub fn update_scroll(&mut self, visible_height: usize) {
+        if self.list_items.is_empty() {
+            self.scroll_offset = 0;
+            return;
+        }
+
+        // 如果选中项在滚动区域上方，向上滚动
+        if self.selected_index < self.scroll_offset {
+            self.scroll_offset = self.selected_index;
+        }
+        // 如果选中项在滚动区域下方，向下滚动
+        else if self.selected_index >= self.scroll_offset + visible_height {
+            self.scroll_offset = self.selected_index.saturating_sub(visible_height - 1);
+        }
+
+        // 确保滚动偏移量不超过列表范围
+        let max_offset = self.list_items.len().saturating_sub(visible_height);
+        self.scroll_offset = self.scroll_offset.min(max_offset);
     }
 }

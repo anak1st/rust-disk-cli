@@ -18,6 +18,10 @@ pub fn render(f: &mut Frame, app: &App) {
     // 列表区域的可用宽度
     let list_width = size.width as usize - margin * 2;
 
+    // 计算列表区域高度
+    // 总高度 - 顶部状态栏(3行) - 底部帮助栏(1行) - 列表边框(2行) = 可用内容高度
+    let list_height = size.height.saturating_sub(6) as usize;
+
     // -------------------------------------------------------------------
     // 1. 绘制顶部状态栏
     // -------------------------------------------------------------------
@@ -60,13 +64,17 @@ pub fn render(f: &mut Frame, app: &App) {
     }
 
     // -------------------------------------------------------------------
-    // 2. 绘制文件列表
+    // 2. 绘制文件列表（带滚动）
     // -------------------------------------------------------------------
-    let list_items: Vec<ListItem> = app
+    // 只渲染可见区域的列表项
+    let visible_items: Vec<ListItem> = app
         .list_items
         .iter()
+        .skip(app.scroll_offset)
+        .take(list_height)
         .enumerate()
         .map(|(i, (name, size_str, depth, _, _))| {
+            let actual_index = app.scroll_offset + i;
             // 计算缩进（每个深度级别 2 个空格）
             let indent = "  ".repeat(*depth);
             let indent_width = depth * 2;
@@ -83,7 +91,7 @@ pub fn render(f: &mut Frame, app: &App) {
             let content = format!("{:<width$}{:>size$}", truncated_name, size_str, width = max_name_width, size = size_width);
 
             // 高亮当前选中的项
-            let style = if i == app.selected_index {
+            let style = if actual_index == app.selected_index {
                 Style::default().bg(Color::Blue).fg(Color::White)
             } else {
                 Style::default().fg(Color::White)
@@ -93,7 +101,7 @@ pub fn render(f: &mut Frame, app: &App) {
         })
         .collect();
 
-    let list = List::new(list_items)
+    let list = List::new(visible_items)
         .block(Block::default().title("文件树").borders(Borders::ALL))
         .style(Style::default().bg(Color::Black));
 
