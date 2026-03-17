@@ -36,9 +36,10 @@ pub fn render(f: &mut Frame, app: &App) {
     let (status_text, time_text) = if app.state.is_scanning.load(std::sync::atomic::Ordering::Relaxed) {
         let files = app.state.files_scanned.load(std::sync::atomic::Ordering::Relaxed);
         let path = app.state.current_path.lock().map(|p| p.clone()).unwrap_or_default();
-        (format!("扫描中: {} ({} 文件)", path, files), String::new())
+        (format!("{} 文件 | 扫描中: {}", files, path), String::new())
     } else if let Some(ref root) = app.state.root {
-        let size_text = format!("总大小: {}", format_size(root.size));
+        let files = app.state.files_scanned.load(std::sync::atomic::Ordering::Relaxed);
+        let size_text = format!("{} 文件 | 总大小: {}", files, format_size(root.size));
         let time_str = if app.state.scan_duration_ms > 0 {
             format!("{:.2}s", app.state.scan_duration_ms as f64 / 1000.0)
         } else {
