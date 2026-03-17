@@ -88,11 +88,12 @@ pub fn scan_dir(
     scanned: &Arc<AtomicUsize>,
     current_path: &Arc<std::sync::Mutex<String>>,
 ) -> Result<FileNode, std::io::Error> {
-    // 增加已扫描文件计数
-    scanned.fetch_add(1, Ordering::Relaxed);
+    // 增加已扫描文件计数，并获取增加前的值
+    // 合并为一个原子操作，避免两次原子操作之间的竞争
+    let prev_count = scanned.fetch_add(1, Ordering::Relaxed);
 
     // 每扫描 1000 个文件更新一次当前路径显示
-    if scanned.load(Ordering::Relaxed) % 1000 == 0 {
+    if prev_count % 1000 == 0 {
         if let Ok(mut cp) = current_path.lock() {
             *cp = path.to_string_lossy().to_string();
         }

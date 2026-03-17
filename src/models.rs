@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// 文件或目录节点
 /// 用于表示扫描结果中的每个文件或文件夹
@@ -20,7 +21,9 @@ pub struct ScanState {
     pub is_scanning: Arc<AtomicBool>,        // 是否正在扫描（原子类型）
     pub current_path: Arc<Mutex<String>>,    // 当前正在扫描的路径
     pub files_scanned: Arc<AtomicUsize>,     // 已扫描的文件数量（原子类型）
-    pub error: Option<String>,                // 错误信息（如果有）
+    pub error: Option<String>,               // 错误信息（如果有）
+    pub scan_start_time: Option<Instant>,    // 扫描开始时间
+    pub scan_duration_ms: u128,              // 扫描耗时（毫秒）
 }
 
 impl ScanState {
@@ -32,6 +35,8 @@ impl ScanState {
             current_path: Arc::new(Mutex::new(String::new())),
             files_scanned: Arc::new(AtomicUsize::new(0)),
             error: None,
+            scan_start_time: None,
+            scan_duration_ms: 0,
         }
     }
 }

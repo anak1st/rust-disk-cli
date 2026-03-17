@@ -49,6 +49,8 @@ impl App {
         self.state.error = None;
         self.state.is_scanning.store(true, Ordering::SeqCst);
         self.state.files_scanned.store(0, Ordering::SeqCst);
+        self.state.scan_start_time = Some(std::time::Instant::now());
+        self.state.scan_duration_ms = 0;
 
         // 获取共享的原子引用
         let files_scanned = std::sync::Arc::clone(&self.state.files_scanned);
@@ -73,6 +75,10 @@ impl App {
                         Ok(result) => {
                             // 扫描彻底结束，设置原子变量
                             self.state.is_scanning.store(false, Ordering::SeqCst);
+                            // 计算扫描耗时（毫秒）
+                            if let Some(start_time) = self.state.scan_start_time {
+                                self.state.scan_duration_ms = start_time.elapsed().as_millis();
+                            }
                             match result {
                                 Ok(root) => {
                                     self.state.root = Some(root);
