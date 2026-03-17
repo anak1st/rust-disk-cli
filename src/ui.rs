@@ -32,22 +32,28 @@ pub fn render(f: &mut Frame, app: &App) {
 
     f.render_widget(status_bar, Rect::new(0, 0, size.width, 3));
 
+    // 计算扫描时间（扫描中或已完成都显示）
+    let time_text = if let Some(start_time) = app.state.scan_start_time {
+        let elapsed_ms = if app.state.is_scanning.load(std::sync::atomic::Ordering::Relaxed) {
+            start_time.elapsed().as_millis()
+        } else {
+            app.state.scan_duration_ms
+        };
+        format!(" │ {:.2}s", elapsed_ms as f64 / 1000.0)
+    } else {
+        String::new()
+    };
+
     // 根据扫描状态显示不同信息
-    let (status_text, time_text) = if app.state.is_scanning.load(std::sync::atomic::Ordering::Relaxed) {
+    let status_text = if app.state.is_scanning.load(std::sync::atomic::Ordering::Relaxed) {
         let files = app.state.files_scanned.load(std::sync::atomic::Ordering::Relaxed);
         let path = app.state.current_path.lock().map(|p| p.clone()).unwrap_or_default();
-        (format!("{} 文件 | 扫描中: {}", files, path), String::new())
+        format!("{} 文件 | 扫描中: {}", files, path)
     } else if let Some(ref root) = app.state.root {
         let files = app.state.files_scanned.load(std::sync::atomic::Ordering::Relaxed);
-        let size_text = format!("{} 文件 | 总大小: {}", files, format_size(root.size));
-        let time_str = if app.state.scan_duration_ms > 0 {
-            format!("{:.2}s", app.state.scan_duration_ms as f64 / 1000.0)
-        } else {
-            String::new()
-        };
-        (size_text, time_str)
+        format!("{} 文件 | 总大小: {}", files, format_size(root.size))
     } else {
-        ("未扫描".to_string(), String::new())
+        "未扫描".to_string()
     };
 
     // 计算时间文本宽度，用于右对齐
@@ -55,13 +61,13 @@ pub fn render(f: &mut Frame, app: &App) {
 
     // 左侧显示状态信息（留出时间显示的空间）
     let status_widget = Paragraph::new(status_text).style(Style::default().fg(Color::White));
-    f.render_widget(status_widget, Rect::new(1, 1, size.width.saturating_sub(time_width + 2), 1));
+    f.render_widget(status_widget, Rect::new(2, 1, size.width.saturating_sub(time_width + 2), 1));
 
     // 右上角显示耗时（如果有）
     if !time_text.is_empty() {
         let time_widget = Paragraph::new(time_text)
-            .style(Style::default().fg(Color::Green));
-        f.render_widget(time_widget, Rect::new(size.width.saturating_sub(time_width + 1), 1, time_width, 1));
+            .style(Style::default().fg(Color::White));
+        f.render_widget(time_widget, Rect::new(size.width.saturating_sub(time_width), 1, time_width, 1));
     }
 
     // -------------------------------------------------------------------
