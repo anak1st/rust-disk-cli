@@ -13,6 +13,10 @@ pub fn render(f: &mut Frame, app: &App) {
 
     // 数字宽度（固定）
     let size_width: usize = 12;
+    // 分隔符宽度（固定）
+    let sep_width: usize = 1;
+    // 百分比宽度（固定）
+    let percent_width: usize = 8;
     // 左右边距各1
     let margin: usize = 1;
     // 列表区域的可用宽度
@@ -80,22 +84,32 @@ pub fn render(f: &mut Frame, app: &App) {
         .skip(app.scroll_offset)
         .take(list_height)
         .enumerate()
-        .map(|(i, (name, size_str, depth, _, _))| {
+        .map(|(i, item)| {
             let actual_index = app.scroll_offset + i;
             // 计算缩进（每个深度级别 2 个空格）
-            let indent = "  ".repeat(*depth);
-            let indent_width = depth * 2;
+            let indent = "  ".repeat(item.depth);
+            let indent_width = item.depth * 2;
 
-            // 可用宽度 = 总宽度 - 缩进 - 数字宽度 - 边距
-            let max_name_width = list_width.saturating_sub(indent_width + size_width + margin);
+            // 可用宽度 = 总宽度 - 缩进 - 数字宽度 - 分隔符宽度 - 百分比宽度 - 边距
+            let max_name_width = list_width.saturating_sub(indent_width + size_width + sep_width + percent_width + margin);
 
-            // 格式化显示内容：名称（根据深度动态调整）+ 大小（固定宽度）
-            let truncated_name = if name.len() > max_name_width {
-                format!("{}...", &name[..max_name_width.saturating_sub(3)])
+            // 格式化显示内容：名称（根据深度动态调整）+ 大小（固定宽度）+ 分隔符 + 百分比
+            let truncated_name = if item.name.len() > max_name_width {
+                format!("{}...", &item.name[..max_name_width.saturating_sub(3)])
             } else {
-                name.clone()
+                item.name.clone()
             };
-            let content = format!("{:<width$}{:>size$}", truncated_name, size_str, width = max_name_width, size = size_width);
+
+            // 只对目录显示百分比（根目录显示 100%）
+            let percent_str = if item.is_dir && item.depth > 0 {
+                format!("{:>5.1}%", item.percentage)
+            } else if item.depth == 0 {
+                "100%".to_string()
+            } else {
+                "     ".to_string()
+            };
+
+            let content = format!("{:<width$}{:>size$} {:>percent$}", truncated_name, item.size_str, percent_str, width = max_name_width, size = size_width, percent = percent_width);
 
             // 高亮当前选中的项
             let style = if actual_index == app.selected_index {

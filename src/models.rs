@@ -3,6 +3,17 @@ use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+/// 列表项结构体（用于 UI 显示）
+#[derive(Debug, Clone)]
+pub struct ListItem {
+    pub name: String,       // 显示名称（含图标）
+    pub size_str: String,   // 格式化后的大小
+    pub depth: usize,       // 缩进深度
+    pub is_dir: bool,       // 是否为目录
+    pub path: String,       // 完整路径
+    pub percentage: f64,    // 占父目录的百分比
+}
+
 /// 节点类型
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub enum NodeType {

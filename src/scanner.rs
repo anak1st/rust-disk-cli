@@ -1,4 +1,4 @@
-use crate::models::{FileNode, NodeType};
+use crate::models::{FileNode, ListItem, NodeType};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
@@ -186,14 +186,16 @@ pub fn scan_dir(
 /// - node: 当前节点
 /// - depth: 当前深度（用于缩进）
 /// - expanded: 存储每个路径的展开状态
+/// - parent_size: 父节点的大小（用于计算百分比）
 ///
 /// # 返回
-/// - Vec<(名称, 大小, 深度, 是否目录, 路径)> 元组列表
+/// - Vec<ListItem> 列表项
 pub fn tree_to_list(
     node: &FileNode,
     depth: usize,
     expanded: &HashMap<String, bool>,
-) -> Vec<(String, String, usize, bool, String)> {
+    parent_size: u64,
+) -> Vec<ListItem> {
     let mut items = Vec::new();
 
     // 使用路径作为 key 检查展开状态
@@ -220,19 +222,30 @@ pub fn tree_to_list(
         NodeType::Skipped => "🚫 ",  // 跳过的路径
     };
 
+    // 计算占父目录的百分比
+    // 根目录（depth==0）没有父目录概念，设为 100%
+    let percentage = if depth == 0 {
+        100.0
+    } else if parent_size > 0 {
+        (node.size as f64 / parent_size as f64) * 100.0
+    } else {
+        0.0
+    };
+
     // 添加当前节点到列表
-    items.push((
-        format!("{}{}", prefix, node.name),
-        crate::utils::format_size(node.size),
+    items.push(ListItem {
+        name: format!("{}{}", prefix, node.name),
+        size_str: crate::utils::format_size(node.size),
         depth,
-        node.is_dir(),
-        node.path.clone(),
-    ));
+        is_dir: node.is_dir(),
+        path: node.path.clone(),
+        percentage,
+    });
 
     // 如果是目录且已展开，递归添加子节点
     if node.is_dir() && is_expanded {
         for child in &node.children {
-            items.extend(tree_to_list(child, depth + 1, expanded));
+            items.extend(tree_to_list(child, depth + 1, expanded, node.size));
         }
     }
 

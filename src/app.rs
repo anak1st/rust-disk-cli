@@ -1,4 +1,4 @@
-use crate::models::{FileNode, ScanState};
+use crate::models::{FileNode, ListItem, ScanState};
 use crate::scanner;
 use std::collections::HashMap;
 use std::path::Path;
@@ -11,7 +11,7 @@ pub struct App {
     pub scan_path: String,                                     // 要扫描的路径
     pub expanded: HashMap<String, bool>,                       // 每个路径的展开状态
     pub selected_index: usize,                                 // 当前选中的列表项索引
-    pub list_items: Vec<(String, String, usize, bool, String)>, // 扁平化的列表项
+    pub list_items: Vec<ListItem>, // 扁平化的列表项
     pub scan_thread: Option<std::thread::JoinHandle<Result<FileNode, String>>>, // 扫描线程
     pub scroll_offset: usize,                                  // 列表滚动偏移量
 }
@@ -105,22 +105,22 @@ impl App {
     /// 根据当前的展开状态重新生成列表
     pub fn update_list(&mut self) {
         if let Some(ref root) = self.state.root {
-            self.list_items = scanner::tree_to_list(root, 0, &self.expanded);
+            self.list_items = scanner::tree_to_list(root, 0, &self.expanded, 0);
         }
     }
 
     /// 切换选中项目的展开/折叠状态
     pub fn toggle_expand(&mut self) {
         if self.selected_index < self.list_items.len() {
-            let (_, _, depth, is_dir, path) = &self.list_items[self.selected_index];
+            let item = &self.list_items[self.selected_index];
 
             // 只有目录才能展开/折叠
-            if *is_dir {
+            if item.is_dir {
                 // 使用路径作为 key 切换展开状态
                 // 默认值：根目录默认展开，其他默认折叠
-                let default = *depth == 0;
-                let current = self.expanded.get(path).copied().unwrap_or(default);
-                self.expanded.insert(path.clone(), !current);
+                let default = item.depth == 0;
+                let current = self.expanded.get(&item.path).copied().unwrap_or(default);
+                self.expanded.insert(item.path.clone(), !current);
                 self.update_list();
             }
         }
