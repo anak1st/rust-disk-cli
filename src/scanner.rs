@@ -149,13 +149,9 @@ pub fn scan_dir(
 
     // 尝试读取目录内容
     if let Ok(entries) = fs::read_dir(path) {
-        // 收集所有条目（过滤掉隐藏文件）
+        // 收集所有条目（不过滤隐藏文件）
         let entries: Vec<_> = entries
             .flatten()
-            .filter(|entry| {
-                let file_name = entry.file_name();
-                !file_name.to_string_lossy().starts_with('.')
-            })
             .collect();
 
         // 使用 rayon 并行扫描子目录
