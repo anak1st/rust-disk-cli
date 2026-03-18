@@ -100,13 +100,11 @@ pub fn render(f: &mut Frame, app: &App) {
                 item.name.clone()
             };
 
-            // 只对目录显示百分比（根目录显示 100%）
-            let percent_str = if item.is_dir && item.depth > 0 {
-                format!("{:>5.1}%", item.percentage)
-            } else if item.depth == 0 {
+            // 根目录显示 100%，其他显示占父目录的百分比
+            let percent_str = if item.depth == 0 {
                 "100%".to_string()
             } else {
-                "     ".to_string()
+                format!("{:>5.1}%", item.percentage)
             };
 
             let content = format!("{:<width$}{:>size$} {:>percent$}", truncated_name, item.size_str, percent_str, width = max_name_width, size = size_width, percent = percent_width);
